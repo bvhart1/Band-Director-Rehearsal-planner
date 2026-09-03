@@ -92,11 +92,14 @@ can only speak to five of those criteria:
 - Tempo - only whether the tempo was held steady, not whether the tempo \
   choice is stylistically appropriate for the piece (see note below).
 
-Write one `rubric_observations` entry for EACH of these five criteria, \
-every time, even when the data is unremarkable - say so plainly rather than \
-omitting it. Each observation should be 2-4 sentences, grounded in the actual \
-numbers (reference real time ranges, BPM, drift %, or consistency scores), \
-written for a director audience.
+Write EXACTLY ONE `rubric_observations` entry for EACH of these five \
+criteria - five entries total, never more, never fewer, and never more than \
+one entry for the same criterion. Do this even when the data is \
+unremarkable - say so plainly rather than omitting it. Each observation \
+should be 2-4 sentences, grounded in the actual numbers (reference real time \
+ranges, BPM, drift %, or consistency scores), written for a director \
+audience. Every entry must contain your real, final, complete observation - \
+never a placeholder, draft, or filler string standing in for one.
 
 Do NOT write about, imply, or score any other rubric criterion (tone, \
 intonation, balance, blend, sonority, articulation, note accuracy, \
@@ -171,12 +174,28 @@ def build_user_payload(analysis: AnalysisResult, piece_title: str | None, compos
     return payload
 
 
+def _is_placeholder(text: str) -> bool:
+    return text.strip().lower() in ("placeholder", "")
+
+
 def build_rubric_feedback(observations: list[RubricObservationOut]) -> list[dict]:
-    by_caption: dict[str, list[dict]] = {caption: [] for caption in CAPTION_ORDER}
+    # Guard against the model emitting duplicate/placeholder entries for a
+    # criterion: drop stub text, then keep only the last real entry per
+    # criterion so a leftover draft can never reach the director.
+    last_by_criterion: dict[str, RubricObservationOut] = {}
     for obs in observations:
-        caption = CRITERION_CAPTION.get(obs.criterion)
-        if caption:
-            by_caption[caption].append({"criterion": obs.criterion, "observation": obs.observation})
+        if _is_placeholder(obs.observation):
+            continue
+        last_by_criterion[obs.criterion] = obs
+
+    by_caption: dict[str, list[dict]] = {caption: [] for caption in CAPTION_ORDER}
+    for criterion in ASSESSABLE_CRITERIA:
+        obs = last_by_criterion.get(criterion)
+        if not obs:
+            continue
+        by_caption[CRITERION_CAPTION[criterion]].append(
+            {"criterion": obs.criterion, "observation": obs.observation}
+        )
 
     return [
         {
