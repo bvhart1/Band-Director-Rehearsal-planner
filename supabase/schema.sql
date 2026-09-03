@@ -46,11 +46,13 @@ alter table rehearsals enable row level security;
 alter table rehearsal_plans enable row level security;
 alter table drill_items enable row level security;
 
+drop policy if exists "Directors manage their own rehearsals" on rehearsals;
 create policy "Directors manage their own rehearsals"
   on rehearsals for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
+drop policy if exists "Directors read plans for their own rehearsals" on rehearsal_plans;
 create policy "Directors read plans for their own rehearsals"
   on rehearsal_plans for select
   using (
@@ -61,6 +63,7 @@ create policy "Directors read plans for their own rehearsals"
     )
   );
 
+drop policy if exists "Directors manage drill items for their own rehearsals" on drill_items;
 create policy "Directors manage drill items for their own rehearsals"
   on drill_items for all
   using (
@@ -84,6 +87,7 @@ insert into storage.buckets (id, name, public)
 values ('rehearsal-audio', 'rehearsal-audio', false)
 on conflict (id) do nothing;
 
+drop policy if exists "Directors upload to their own folder" on storage.objects;
 create policy "Directors upload to their own folder"
   on storage.objects for insert
   with check (
@@ -91,6 +95,7 @@ create policy "Directors upload to their own folder"
     and (storage.foldername(name))[1] = auth.uid()::text
   );
 
+drop policy if exists "Directors read their own audio" on storage.objects;
 create policy "Directors read their own audio"
   on storage.objects for select
   using (
