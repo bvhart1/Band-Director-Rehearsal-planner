@@ -8,9 +8,13 @@ create table if not exists rehearsals (
   audio_path text not null,
   status text not null default 'uploaded'
     check (status in ('uploaded', 'processing', 'analyzed', 'failed')),
+  error_message text,
   recorded_at timestamptz not null default now(),
   created_at timestamptz not null default now()
 );
+
+-- Safe to re-run: adds the column if this table already existed without it.
+alter table rehearsals add column if not exists error_message text;
 
 create table if not exists rehearsal_plans (
   id uuid primary key default gen_random_uuid(),

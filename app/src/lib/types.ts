@@ -6,6 +6,7 @@ export interface Rehearsal {
   title: string
   audio_path: string
   status: RehearsalStatus
+  error_message: string | null
   recorded_at: string
   created_at: string
 }

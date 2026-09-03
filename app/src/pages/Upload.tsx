@@ -1,6 +1,7 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase, AUDIO_BUCKET } from '../lib/supabaseClient'
+import { triggerAnalysis } from '../lib/analysis'
 import { useAuth } from '../context/AuthContext'
 
 export function Upload() {
@@ -37,20 +38,25 @@ export function Upload() {
       return
     }
 
-    const { error: insertError } = await supabase.from('rehearsals').insert({
-      user_id: user.id,
-      title: title || file.name,
-      audio_path: path,
-      status: 'uploaded',
-      recorded_at: new Date(recordedAt).toISOString(),
-    })
+    const { data: inserted, error: insertError } = await supabase
+      .from('rehearsals')
+      .insert({
+        user_id: user.id,
+        title: title || file.name,
+        audio_path: path,
+        status: 'uploaded',
+        recorded_at: new Date(recordedAt).toISOString(),
+      })
+      .select()
+      .single()
 
-    if (insertError) {
+    if (insertError || !inserted) {
       setStatus('error')
-      setError(insertError.message)
+      setError(insertError?.message ?? 'Could not save the rehearsal record.')
       return
     }
 
+    await triggerAnalysis(inserted.id)
     navigate('/dashboard')
   }
 

@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import { triggerAnalysis } from '../lib/analysis'
 import { useAuth } from '../context/AuthContext'
 import type { DrillItem, Rehearsal, RehearsalPlan } from '../lib/types'
+
+const POLL_INTERVAL_MS = 5000
 
 const STATUS_LABEL: Record<Rehearsal['status'], string> = {
   uploaded: 'Waiting to be analyzed',
@@ -16,10 +19,12 @@ export function Dashboard() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [plan, setPlan] = useState<RehearsalPlan | null>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshNonce, setRefreshNonce] = useState(0)
 
   useEffect(() => {
     if (!user) return
     let cancelled = false
+    let timer: ReturnType<typeof setTimeout>
 
     async function loadRehearsals() {
       const { data } = await supabase
@@ -33,13 +38,21 @@ export function Dashboard() {
       setRehearsals(list)
       setSelectedId((current) => current ?? list[0]?.id ?? null)
       setLoading(false)
+
+      const stillWorking = list.some((r) => r.status === 'uploaded' || r.status === 'processing')
+      if (stillWorking) {
+        timer = setTimeout(loadRehearsals, POLL_INTERVAL_MS)
+      }
     }
 
     loadRehearsals()
     return () => {
       cancelled = true
+      clearTimeout(timer)
     }
-  }, [user])
+  }, [user, refreshNonce])
+
+  const selectedStatus = rehearsals.find((r) => r.id === selectedId)?.status ?? null
 
   useEffect(() => {
     if (!selectedId) {
@@ -79,7 +92,12 @@ export function Dashboard() {
     return () => {
       cancelled = true
     }
-  }, [selectedId])
+  }, [selectedId, selectedStatus])
+
+  async function retryAnalysis(rehearsalId: string) {
+    await triggerAnalysis(rehearsalId)
+    setRefreshNonce((n) => n + 1)
+  }
 
   async function toggleDrillDone(item: DrillItem) {
     if (!plan) return
@@ -134,10 +152,32 @@ export function Dashboard() {
               </span>
             </p>
 
-            {!plan && selected.status !== 'analyzed' && (
+            {selected.status === 'failed' && (
+              <div className="empty-plan">
+                <p>
+                  {selected.error_message ??
+                    'Something went wrong analyzing this recording.'}
+                </p>
+                <button type="button" onClick={() => retryAnalysis(selected.id)}>
+                  Retry analysis
+                </button>
+              </div>
+            )}
+
+            {(selected.status === 'uploaded' || selected.status === 'processing') && !plan && (
               <p className="empty-plan">
-                This recording hasn't been analyzed yet. Once the audio pipeline finishes,
-                your prioritized rehearsal plan will show up here.
+                {selected.status === 'processing'
+                  ? 'Analyzing tempo and rhythm now — this can take a minute or two.'
+                  : "Waiting to start analysis. If this doesn't move to \"Analyzing…\" shortly,"}
+                {selected.status === 'uploaded' && (
+                  <>
+                    {' '}
+                    <button type="button" onClick={() => retryAnalysis(selected.id)}>
+                      try again
+                    </button>
+                    .
+                  </>
+                )}
               </p>
             )}
 
@@ -162,7 +202,7 @@ export function Dashboard() {
                           {item.priority}
                         </span>
                         <span>{item.suggested_minutes} min</span>
-                        {item.measures && <span>Measures {item.measures}</span>}
+                        {item.measures && <span>{item.measures}</span>}
                       </div>
                       <p className="drill-description">{item.description}</p>
                     </div>

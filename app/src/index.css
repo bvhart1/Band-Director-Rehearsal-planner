@@ -254,6 +254,16 @@ main {
   color: var(--text-muted);
 }
 
+.empty-plan button {
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
 .plan-summary {
   font-size: 1.02rem;
   line-height: 1.5;
