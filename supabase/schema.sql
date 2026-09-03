@@ -11,6 +11,7 @@ create table if not exists rehearsals (
   error_message text,
   piece_title text,
   composer text,
+  reference_audio_path text,
   recorded_at timestamptz not null default now(),
   created_at timestamptz not null default now()
 );
@@ -19,6 +20,7 @@ create table if not exists rehearsals (
 alter table rehearsals add column if not exists error_message text;
 alter table rehearsals add column if not exists piece_title text;
 alter table rehearsals add column if not exists composer text;
+alter table rehearsals add column if not exists reference_audio_path text;
 
 create table if not exists rehearsal_plans (
   id uuid primary key default gen_random_uuid(),

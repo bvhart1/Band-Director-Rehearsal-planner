@@ -140,6 +140,29 @@ concert band repertoire includes many pieces you may not know specifically. \
 When you're not confident, do not guess or invent plausible-sounding details \
 - just use the title as a label, not as a source of claims.
 
+You may also be given a `reference_comparison`: the director provided a \
+reference recording of the same piece, aligned to this rehearsal by musical \
+content (not clock time) so corresponding passages can be compared even at \
+different tempos.
+
+- If `alignment_quality` is "uncertain", the reference didn't line up well \
+  with this rehearsal (likely a different piece, arrangement, or unrelated \
+  audio) - do NOT use any numbers from it. Instead, briefly note in the \
+  summary that the reference recording didn't align reliably, so no \
+  comparison was possible.
+- If `alignment_quality` is "good", each entry in `segment_comparisons` \
+  gives you, for a rehearsal segment, the reference's tempo/dynamic-range at \
+  the same musical spot, and the delta (rehearsal minus reference). Use \
+  these deltas to enrich your Stability of Pulse, Tempo, Dynamics Observed, \
+  and Dynamic Expression observations - e.g., "the ensemble is taking this \
+  passage about 6 BPM faster than the reference." A positive tempo_delta_bpm \
+  means the rehearsal is faster than the reference there; positive \
+  dynamic_range_delta_db means the rehearsal has more dynamic contrast than \
+  the reference at that spot. Still only comment on tempo/dynamics - the \
+  reference does not give you tone, intonation, or balance data either.
+- If no `reference_comparison` is present at all, don't mention a reference \
+  recording - none was provided.
+
 Beyond the rubric_observations, also produce the existing rehearsal-plan \
 output:
 
@@ -194,7 +217,12 @@ class RehearsalPlanOut(BaseModel):
     drill_items: list[DrillItemOut]
 
 
-def build_user_payload(analysis: AnalysisResult, piece_title: str | None, composer: str | None) -> dict:
+def build_user_payload(
+    analysis: AnalysisResult,
+    piece_title: str | None,
+    composer: str | None,
+    reference_comparison: dict | None = None,
+) -> dict:
     payload: dict = {
         "recording": analysis.to_dict(),
         "most_in_need_of_work": [s.to_dict() for s in analysis.most_in_need_of_work()],
@@ -203,6 +231,8 @@ def build_user_payload(analysis: AnalysisResult, piece_title: str | None, compos
         payload["piece_title"] = piece_title
     if composer:
         payload["composer_or_arranger"] = composer
+    if reference_comparison:
+        payload["reference_comparison"] = reference_comparison
     return payload
 
 
@@ -244,10 +274,11 @@ def generate_plan(
     *,
     piece_title: str | None = None,
     composer: str | None = None,
+    reference_comparison: dict | None = None,
     client: anthropic.Anthropic | None = None,
 ) -> RehearsalPlanOut:
     client = client or anthropic.Anthropic()
-    payload = build_user_payload(analysis, piece_title, composer)
+    payload = build_user_payload(analysis, piece_title, composer, reference_comparison)
 
     response = client.messages.parse(
         model=MODEL,

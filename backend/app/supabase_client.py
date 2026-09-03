@@ -55,6 +55,11 @@ def set_audio_path(rehearsal_id: str, storage_path: str) -> None:
     client.table("rehearsals").update({"audio_path": storage_path}).eq("id", rehearsal_id).execute()
 
 
+def set_reference_audio_path(rehearsal_id: str, storage_path: str) -> None:
+    client = get_service_client()
+    client.table("rehearsals").update({"reference_audio_path": storage_path}).eq("id", rehearsal_id).execute()
+
+
 def clear_previous_plan(rehearsal_id: str) -> None:
     client = get_service_client()
     client.table("drill_items").delete().eq("rehearsal_id", rehearsal_id).execute()

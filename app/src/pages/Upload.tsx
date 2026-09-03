@@ -22,6 +22,9 @@ export function Upload() {
   const [title, setTitle] = useState('')
   const [pieceTitle, setPieceTitle] = useState('')
   const [composer, setComposer] = useState('')
+  const [referenceMode, setReferenceMode] = useState<'file' | 'link'>('file')
+  const [referenceFile, setReferenceFile] = useState<File | null>(null)
+  const [referenceLinkUrl, setReferenceLinkUrl] = useState('')
   const [recordedAt, setRecordedAt] = useState(() => new Date().toISOString().slice(0, 16))
   const [status, setStatus] = useState<'idle' | 'uploading' | 'error'>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -92,6 +95,24 @@ export function Upload() {
       }
     }
 
+    let referenceAudioPath: string | null = null
+    const referenceLink = referenceMode === 'link' ? referenceLinkUrl.trim() : ''
+
+    if (referenceMode === 'file' && referenceFile) {
+      const refExt = referenceFile.name.split('.').pop() ?? 'audio'
+      referenceAudioPath = `${user.id}/reference-${Date.now()}.${refExt}`
+      const { error: refUploadError } = await supabase.storage
+        .from(AUDIO_BUCKET)
+        .upload(referenceAudioPath, referenceFile)
+      if (refUploadError) {
+        setStatus('error')
+        setError(refUploadError.message)
+        return
+      }
+    } else if (referenceLink) {
+      referenceAudioPath = 'pending'
+    }
+
     const { data: inserted, error: insertError } = await supabase
       .from('rehearsals')
       .insert({
@@ -101,6 +122,7 @@ export function Upload() {
         status: 'uploaded',
         piece_title: pieceTitle.trim() || null,
         composer: composer.trim() || null,
+        reference_audio_path: referenceAudioPath,
         recorded_at: new Date(recordedAt).toISOString(),
       })
       .select()
@@ -112,7 +134,10 @@ export function Upload() {
       return
     }
 
-    await triggerAnalysis(inserted.id, source === 'link' ? { sourceUrl: linkUrl.trim() } : undefined)
+    await triggerAnalysis(inserted.id, {
+      sourceUrl: source === 'link' ? linkUrl.trim() : undefined,
+      referenceSourceUrl: referenceLink || undefined,
+    })
     navigate('/dashboard')
   }
 
@@ -282,6 +307,55 @@ export function Upload() {
             about the piece if it's confident it knows it well.
           </span>
         </label>
+
+        <div className="reference-section">
+          <p className="reference-heading">Compare against a reference recording (optional)</p>
+          <p className="field-hint">
+            Only use a recording you actually have the rights to — your own past take, a
+            recording licensed with the score, or a public-domain recording (e.g. an official
+            U.S. military band recording). Not YouTube or Spotify.
+          </p>
+          <div className="source-toggle reference-toggle">
+            <button
+              type="button"
+              className={referenceMode === 'file' ? 'source-tab active' : 'source-tab'}
+              onClick={() => {
+                setReferenceMode('file')
+                setReferenceLinkUrl('')
+              }}
+            >
+              Upload a file
+            </button>
+            <button
+              type="button"
+              className={referenceMode === 'link' ? 'source-tab active' : 'source-tab'}
+              onClick={() => {
+                setReferenceMode('link')
+                setReferenceFile(null)
+              }}
+            >
+              Link to a file
+            </button>
+          </div>
+
+          {referenceMode === 'file' && (
+            <input
+              type="file"
+              accept="audio/*,.m4a,.caf,.mp3,.wav,.aac,.ogg,.webm"
+              onChange={(e) => setReferenceFile(e.target.files?.[0] ?? null)}
+            />
+          )}
+          {referenceMode === 'link' && (
+            <input
+              type="url"
+              inputMode="url"
+              placeholder="https://... or a Google Drive share link"
+              value={referenceLinkUrl}
+              onChange={(e) => setReferenceLinkUrl(e.target.value)}
+            />
+          )}
+        </div>
+
         <label>
           Rehearsal date &amp; time
           <input

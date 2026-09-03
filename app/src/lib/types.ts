@@ -9,6 +9,7 @@ export interface Rehearsal {
   error_message: string | null
   piece_title: string | null
   composer: string | null
+  reference_audio_path: string | null
   recorded_at: string
   created_at: string
 }
