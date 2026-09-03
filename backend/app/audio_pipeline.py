@@ -27,17 +27,27 @@ MIN_BEATS_FOR_ANALYSIS = 6  # below this, tempo/consistency numbers are unreliab
 CONSISTENCY_SCALE = 200.0
 
 
+CONVERT_TIMEOUT_S = 300
+
+
 def convert_to_wav(input_path: str, output_path: str) -> None:
     """Normalize any input audio format to mono 22.05kHz WAV via ffmpeg."""
-    result = subprocess.run(
-        [
-            "ffmpeg", "-y", "-i", input_path,
-            "-ac", "1", "-ar", str(SAMPLE_RATE),
-            "-vn", output_path,
-        ],
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            [
+                "ffmpeg", "-y", "-i", input_path,
+                "-ac", "1", "-ar", str(SAMPLE_RATE),
+                "-vn", output_path,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=CONVERT_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"Audio conversion timed out after {CONVERT_TIMEOUT_S}s - the file may be "
+            "corrupted or in an unsupported format."
+        ) from exc
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg conversion failed: {result.stderr[-2000:]}")
 
