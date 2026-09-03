@@ -105,9 +105,17 @@ def _run_pipeline(rehearsal_id: str, user_id: str, audio_path: str, source_url: 
                 with open(input_path, "wb") as f:
                     f.write(raw_bytes)
 
+            logger.info("Rehearsal %s: converting audio with ffmpeg", rehearsal_id)
             wav_path = os.path.join(tmpdir, "converted.wav")
             convert_to_wav(input_path, wav_path)
+
+            logger.info("Rehearsal %s: running tempo/rhythm analysis", rehearsal_id)
             analysis = analyze_recording(wav_path)
+            logger.info(
+                "Rehearsal %s: analysis found %d segment(s)",
+                rehearsal_id,
+                len(analysis.segments),
+            )
 
         if not analysis.analyzable_segments:
             supabase_client.update_rehearsal_status(
@@ -118,7 +126,9 @@ def _run_pipeline(rehearsal_id: str, user_id: str, audio_path: str, source_url: 
             )
             return
 
+        logger.info("Rehearsal %s: requesting plan from Claude", rehearsal_id)
         plan = generate_plan(analysis)
+        logger.info("Rehearsal %s: got plan with %d drill item(s)", rehearsal_id, len(plan.drill_items))
 
         supabase_client.clear_previous_plan(rehearsal_id)
         drill_items = [
