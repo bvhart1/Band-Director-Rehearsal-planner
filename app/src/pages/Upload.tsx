@@ -20,6 +20,8 @@ export function Upload() {
   const [file, setFile] = useState<File | null>(null)
   const [linkUrl, setLinkUrl] = useState('')
   const [title, setTitle] = useState('')
+  const [pieceTitle, setPieceTitle] = useState('')
+  const [composer, setComposer] = useState('')
   const [recordedAt, setRecordedAt] = useState(() => new Date().toISOString().slice(0, 16))
   const [status, setStatus] = useState<'idle' | 'uploading' | 'error'>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -97,6 +99,8 @@ export function Upload() {
         title: insertTitle,
         audio_path: audioPath,
         status: 'uploaded',
+        piece_title: pieceTitle.trim() || null,
+        composer: composer.trim() || null,
         recorded_at: new Date(recordedAt).toISOString(),
       })
       .select()
@@ -255,6 +259,28 @@ export function Upload() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
+        </label>
+        <label>
+          Piece title <span className="field-optional">(optional)</span>
+          <input
+            type="text"
+            placeholder="e.g. Suite of Old American Dances"
+            value={pieceTitle}
+            onChange={(e) => setPieceTitle(e.target.value)}
+          />
+        </label>
+        <label>
+          Composer / arranger <span className="field-optional">(optional)</span>
+          <input
+            type="text"
+            placeholder="e.g. Robert Russell Bennett"
+            value={composer}
+            onChange={(e) => setComposer(e.target.value)}
+          />
+          <span className="field-hint">
+            Lets the feedback refer to the piece by name. Claude will only state specific facts
+            about the piece if it's confident it knows it well.
+          </span>
         </label>
         <label>
           Rehearsal date &amp; time

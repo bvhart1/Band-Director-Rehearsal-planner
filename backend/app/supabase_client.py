@@ -61,9 +61,11 @@ def clear_previous_plan(rehearsal_id: str) -> None:
     client.table("rehearsal_plans").delete().eq("rehearsal_id", rehearsal_id).execute()
 
 
-def write_plan(rehearsal_id: str, summary: str, drill_items: list[dict]) -> None:
+def write_plan(rehearsal_id: str, summary: str, rubric_feedback: list[dict], drill_items: list[dict]) -> None:
     client = get_service_client()
-    client.table("rehearsal_plans").insert({"rehearsal_id": rehearsal_id, "summary": summary}).execute()
+    client.table("rehearsal_plans").insert(
+        {"rehearsal_id": rehearsal_id, "summary": summary, "rubric_feedback": rubric_feedback}
+    ).execute()
     if drill_items:
         rows = [{**item, "rehearsal_id": rehearsal_id} for item in drill_items]
         client.table("drill_items").insert(rows).execute()

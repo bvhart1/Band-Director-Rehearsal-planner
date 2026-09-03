@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { triggerAnalysis } from '../lib/analysis'
 import { useAuth } from '../context/AuthContext'
-import type { DrillItem, Rehearsal, RehearsalPlan } from '../lib/types'
+import type { DrillItem, Rehearsal, RehearsalPlan, RubricCaptionFeedback } from '../lib/types'
 
 const POLL_INTERVAL_MS = 5000
 
@@ -84,6 +84,7 @@ export function Dashboard() {
         id: planRow.id,
         rehearsal_id: planRow.rehearsal_id,
         summary: planRow.summary,
+        rubric_feedback: (planRow.rubric_feedback as RubricCaptionFeedback[]) ?? [],
         drill_items: (drillRows as DrillItem[]) ?? [],
       })
     }
@@ -145,6 +146,12 @@ export function Dashboard() {
         {selected && (
           <>
             <h1>{selected.title}</h1>
+            {selected.piece_title && (
+              <p className="piece-byline">
+                {selected.piece_title}
+                {selected.composer && <> — {selected.composer}</>}
+              </p>
+            )}
             <p className="page-subtitle">
               {new Date(selected.recorded_at).toLocaleString()} ·{' '}
               <span className={`status-badge status-${selected.status}`}>
@@ -184,6 +191,34 @@ export function Dashboard() {
             {plan && (
               <div className="plan">
                 <p className="plan-summary">{plan.summary}</p>
+
+                {plan.rubric_feedback.length > 0 && (
+                  <div className="rubric">
+                    <h2>FBA Rubric Feedback</h2>
+                    <p className="rubric-caveat">
+                      This tool only measures tempo and rhythm timing, so it can only speak to a
+                      handful of the rubric's 24 criteria. Everything else is explicitly marked as
+                      not assessed rather than guessed at.
+                    </p>
+                    {plan.rubric_feedback.map((caption) => (
+                      <div key={caption.caption} className="rubric-caption">
+                        <h3>{caption.caption}</h3>
+                        {caption.assessed.map((item) => (
+                          <div key={item.criterion} className="rubric-criterion">
+                            <span className="rubric-criterion-name">{item.criterion}</span>
+                            <p>{item.observation}</p>
+                          </div>
+                        ))}
+                        {caption.not_assessed.length > 0 && (
+                          <p className="rubric-not-assessed">
+                            Not assessed by this tool: {caption.not_assessed.join(', ')}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <div className="drill-list">
                   {plan.drill_items.map((item) => (
                     <div key={item.id} className={`drill-item priority-${item.priority}`}>

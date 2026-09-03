@@ -9,19 +9,26 @@ create table if not exists rehearsals (
   status text not null default 'uploaded'
     check (status in ('uploaded', 'processing', 'analyzed', 'failed')),
   error_message text,
+  piece_title text,
+  composer text,
   recorded_at timestamptz not null default now(),
   created_at timestamptz not null default now()
 );
 
 -- Safe to re-run: adds the column if this table already existed without it.
 alter table rehearsals add column if not exists error_message text;
+alter table rehearsals add column if not exists piece_title text;
+alter table rehearsals add column if not exists composer text;
 
 create table if not exists rehearsal_plans (
   id uuid primary key default gen_random_uuid(),
   rehearsal_id uuid not null unique references rehearsals (id) on delete cascade,
   summary text not null,
+  rubric_feedback jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now()
 );
+
+alter table rehearsal_plans add column if not exists rubric_feedback jsonb not null default '[]'::jsonb;
 
 create table if not exists drill_items (
   id uuid primary key default gen_random_uuid(),

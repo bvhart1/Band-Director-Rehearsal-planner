@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from . import supabase_client
 from .audio_pipeline import analyze_recording_with_timeout, convert_to_wav
-from .claude_plan import generate_plan
+from .claude_plan import build_rubric_feedback, generate_plan
 from .link_fetch import LinkFetchError, fetch_audio_from_url
 
 logging.basicConfig(level=logging.INFO)
@@ -75,11 +75,26 @@ def analyze(
 
     supabase_client.update_rehearsal_status(rehearsal_id, "processing")
     source_url = body.source_url if body else None
-    background_tasks.add_task(_run_pipeline, rehearsal_id, user_id, rehearsal["audio_path"], source_url)
+    background_tasks.add_task(
+        _run_pipeline,
+        rehearsal_id,
+        user_id,
+        rehearsal["audio_path"],
+        source_url,
+        rehearsal.get("piece_title"),
+        rehearsal.get("composer"),
+    )
     return {"status": "processing"}
 
 
-def _run_pipeline(rehearsal_id: str, user_id: str, audio_path: str, source_url: str | None = None) -> None:
+def _run_pipeline(
+    rehearsal_id: str,
+    user_id: str,
+    audio_path: str,
+    source_url: str | None = None,
+    piece_title: str | None = None,
+    composer: str | None = None,
+) -> None:
     try:
         logger.info("Starting analysis for rehearsal %s", rehearsal_id)
 
@@ -127,7 +142,7 @@ def _run_pipeline(rehearsal_id: str, user_id: str, audio_path: str, source_url: 
             return
 
         logger.info("Rehearsal %s: requesting plan from Claude", rehearsal_id)
-        plan = generate_plan(analysis)
+        plan = generate_plan(analysis, piece_title=piece_title, composer=composer)
         logger.info("Rehearsal %s: got plan with %d drill item(s)", rehearsal_id, len(plan.drill_items))
 
         supabase_client.clear_previous_plan(rehearsal_id)
@@ -142,7 +157,8 @@ def _run_pipeline(rehearsal_id: str, user_id: str, audio_path: str, source_url: 
             }
             for item in plan.drill_items
         ]
-        supabase_client.write_plan(rehearsal_id, plan.summary, drill_items)
+        rubric_feedback = build_rubric_feedback(plan.rubric_observations)
+        supabase_client.write_plan(rehearsal_id, plan.summary, rubric_feedback, drill_items)
         supabase_client.update_rehearsal_status(rehearsal_id, "analyzed")
         logger.info("Finished analysis for rehearsal %s", rehearsal_id)
     except Exception as exc:  # noqa: BLE001 - report every failure back to the director
