@@ -200,22 +200,24 @@ export function Dashboard() {
                       handful of the rubric's 24 criteria. Everything else is explicitly marked as
                       not assessed rather than guessed at.
                     </p>
-                    {plan.rubric_feedback.map((caption) => (
-                      <div key={caption.caption} className="rubric-caption">
-                        <h3>{caption.caption}</h3>
-                        {caption.assessed.map((item) => (
-                          <div key={item.criterion} className="rubric-criterion">
-                            <span className="rubric-criterion-name">{item.criterion}</span>
-                            <p>{item.observation}</p>
-                          </div>
-                        ))}
-                        {caption.not_assessed.length > 0 && (
-                          <p className="rubric-not-assessed">
-                            Not assessed by this tool: {caption.not_assessed.join(', ')}
-                          </p>
-                        )}
-                      </div>
-                    ))}
+                    <div className="rubric-columns">
+                      {plan.rubric_feedback.map((caption) => (
+                        <div key={caption.caption} className="rubric-caption">
+                          <h3>{caption.caption}</h3>
+                          {caption.assessed.map((item) => (
+                            <div key={item.criterion} className="rubric-criterion">
+                              <span className="rubric-criterion-name">{item.criterion}</span>
+                              <p>{item.observation}</p>
+                            </div>
+                          ))}
+                          {caption.not_assessed.length > 0 && (
+                            <p className="rubric-not-assessed">
+                              Not assessed by this tool: {caption.not_assessed.join(', ')}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 

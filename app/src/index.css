@@ -387,14 +387,19 @@ main {
   line-height: 1.4;
 }
 
-.rubric-caption {
-  padding: 0.75rem 0;
-  border-top: 1px solid var(--border);
+.rubric-columns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  align-items: start;
 }
 
-.rubric-caption:first-of-type {
-  border-top: none;
-  padding-top: 0;
+.rubric-caption {
+  padding: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  min-width: 0;
 }
 
 .rubric-caption h3 {
@@ -501,6 +506,10 @@ main {
 
 @media (max-width: 720px) {
   .dashboard {
+    grid-template-columns: 1fr;
+  }
+
+  .rubric-columns {
     grid-template-columns: 1fr;
   }
 }
