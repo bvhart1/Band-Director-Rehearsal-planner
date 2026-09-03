@@ -3,13 +3,16 @@ from __future__ import annotations
 import logging
 import os
 import tempfile
+import time
 
 from fastapi import BackgroundTasks, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from . import supabase_client
 from .audio_pipeline import analyze_recording, convert_to_wav
 from .claude_plan import generate_plan
+from .link_fetch import LinkFetchError, fetch_audio_from_url
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("rehearsal-coach")
@@ -49,8 +52,17 @@ def _require_user_id(authorization: str | None) -> str:
     return user_id
 
 
+class AnalyzeRequest(BaseModel):
+    source_url: str | None = None
+
+
 @app.post("/analyze/{rehearsal_id}", status_code=202)
-def analyze(rehearsal_id: str, background_tasks: BackgroundTasks, authorization: str | None = Header(None)) -> dict:
+def analyze(
+    rehearsal_id: str,
+    background_tasks: BackgroundTasks,
+    body: AnalyzeRequest | None = None,
+    authorization: str | None = Header(None),
+) -> dict:
     user_id = _require_user_id(authorization)
 
     rehearsal = supabase_client.fetch_rehearsal(rehearsal_id)
@@ -62,23 +74,38 @@ def analyze(rehearsal_id: str, background_tasks: BackgroundTasks, authorization:
         raise HTTPException(status_code=409, detail="Already processing")
 
     supabase_client.update_rehearsal_status(rehearsal_id, "processing")
-    background_tasks.add_task(_run_pipeline, rehearsal_id, rehearsal["audio_path"])
+    source_url = body.source_url if body else None
+    background_tasks.add_task(_run_pipeline, rehearsal_id, user_id, rehearsal["audio_path"], source_url)
     return {"status": "processing"}
 
 
-def _run_pipeline(rehearsal_id: str, audio_path: str) -> None:
+def _run_pipeline(rehearsal_id: str, user_id: str, audio_path: str, source_url: str | None = None) -> None:
     try:
         logger.info("Starting analysis for rehearsal %s", rehearsal_id)
-        raw_bytes = supabase_client.download_audio(audio_path)
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            suffix = os.path.splitext(audio_path)[1] or ".audio"
-            input_path = os.path.join(tmpdir, f"input{suffix}")
+            if source_url:
+                try:
+                    data, ext = fetch_audio_from_url(source_url)
+                except LinkFetchError as exc:
+                    supabase_client.update_rehearsal_status(rehearsal_id, "failed", str(exc))
+                    return
+
+                input_path = os.path.join(tmpdir, f"input{ext}")
+                with open(input_path, "wb") as f:
+                    f.write(data)
+
+                storage_path = f"{user_id}/{int(time.time() * 1000)}{ext}"
+                supabase_client.upload_audio(storage_path, data)
+                supabase_client.set_audio_path(rehearsal_id, storage_path)
+            else:
+                raw_bytes = supabase_client.download_audio(audio_path)
+                suffix = os.path.splitext(audio_path)[1] or ".audio"
+                input_path = os.path.join(tmpdir, f"input{suffix}")
+                with open(input_path, "wb") as f:
+                    f.write(raw_bytes)
+
             wav_path = os.path.join(tmpdir, "converted.wav")
-
-            with open(input_path, "wb") as f:
-                f.write(raw_bytes)
-
             convert_to_wav(input_path, wav_path)
             analysis = analyze_recording(wav_path)
 
