@@ -127,7 +127,17 @@ export function Upload() {
         {source === 'file' && (
           <label>
             Recording
-            <input type="file" accept="audio/*" required onChange={handleFileChange} />
+            <input
+              type="file"
+              accept="audio/*,.m4a,.caf,.mp3,.wav,.aac,.ogg,.webm"
+              required
+              onChange={handleFileChange}
+            />
+            <span className="field-hint">
+              On iPhone: tap <strong>Browse</strong> in the picker, not Photos — Voice Memos only
+              show up there if they're synced to iCloud Drive, or saved to Files from the Voice
+              Memos app (open the recording → Share → Save to Files).
+            </span>
           </label>
         )}
 
