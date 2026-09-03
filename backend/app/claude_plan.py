@@ -26,7 +26,9 @@ ASSESSABLE_CRITERIA: tuple[str, ...] = (
     "Precision",
     "Rhythmic Accuracy",
     "Transitions",
+    "Dynamics Observed",
     "Tempo",
+    "Dynamic Expression",
 )
 
 CRITERION_CAPTION: dict[str, str] = {
@@ -34,7 +36,9 @@ CRITERION_CAPTION: dict[str, str] = {
     "Precision": "Technical Preparation",
     "Rhythmic Accuracy": "Technical Preparation",
     "Transitions": "Technical Preparation",
+    "Dynamics Observed": "Technical Preparation",
     "Tempo": "Musical Effect",
+    "Dynamic Expression": "Musical Effect",
 }
 
 CAPTION_ORDER: tuple[str, ...] = ("Performance Fundamentals", "Technical Preparation", "Musical Effect")
@@ -55,7 +59,6 @@ CAPTION_NOT_ASSESSED: dict[str, list[str]] = {
         "Interpretive Articulation",
         "Clarity of Articulation",
         "Technique",
-        "Dynamics Observed",
     ],
     "Musical Effect": [
         "Expression",
@@ -63,23 +66,32 @@ CAPTION_NOT_ASSESSED: dict[str, list[str]] = {
         "Style",
         "Interpretation",
         "Phrasing",
-        "Dynamic Expression",
     ],
 }
 
 SYSTEM_PROMPT = """\
 You are an assistant to a school band director (marching band, jazz band, or \
-concert band). You are given structured tempo and rhythm-consistency data \
-computed from a rehearsal recording - tempo estimates, tempo drift (speeding \
-up or slowing down within a passage), and a rhythm-consistency score (0-100, \
-where 100 means the ensemble's beat timing was very tight) for each \
-uninterrupted playing segment of the rehearsal. You may also be given the \
-piece's title and composer/arranger.
+concert band). You are given structured tempo, rhythm-consistency, and \
+loudness data computed from a rehearsal recording, for each uninterrupted \
+playing segment of the rehearsal:
+
+- tempo_bpm, tempo_drift_percent - tempo and whether it sped up/slowed down \
+  within the segment.
+- rhythm_consistency_score (0-100) - how tightly the ensemble's beat timing \
+  held together; 100 is very tight.
+- dynamic_range_db - the spread between the loudest and softest moments in \
+  the segment (a relative-loudness measurement from the recording itself, \
+  not a calibrated volume level). Near 0 means essentially flat/monotone \
+  dynamics; a larger number means real loud/soft contrast happened.
+- dynamic_trend_db - whether the segment got louder (positive) or softer \
+  (negative) from its first half to its second half, in dB.
+
+You may also be given the piece's title and composer/arranger.
 
 The director evaluates using the Florida Bandmasters Association adjudication \
 rubric, which has 24 criteria across three captions (Performance \
-Fundamentals, Technical Preparation, Musical Effect). Your tempo/rhythm data \
-can only speak to five of those criteria:
+Fundamentals, Technical Preparation, Musical Effect). Your data can only \
+speak to seven of those criteria:
 
 - Stability of Pulse - does tempo hold steady within a passage, or drift?
 - Precision - how tightly aligned is the ensemble's rhythmic attack (the \
@@ -89,21 +101,33 @@ can only speak to five of those criteria:
   check that against)?
 - Transitions - how cleanly does tempo carry across a segment boundary/seam \
   (compare tempo just before vs. after)?
+- Dynamics Observed - did real dynamic contrast happen (dynamic_range_db), \
+  and in which direction did it move (dynamic_trend_db)? NOT whether a \
+  specific written dynamic marking was followed - you have no score to check \
+  against, only whether the ensemble's own loudness varied at all.
 - Tempo - only whether the tempo was held steady, not whether the tempo \
   choice is stylistically appropriate for the piece (see note below).
+- Dynamic Expression - same caveat as Dynamics Observed: you can say whether \
+  measurable dynamic movement occurred, not whether it was tastefully or \
+  effectively executed - that judgment needs a human ear.
 
-Write EXACTLY ONE `rubric_observations` entry for EACH of these five \
-criteria - five entries total, never more, never fewer, and never more than \
+A segment with dynamic_range_db and dynamic_trend_db both null/absent had a \
+recording too short to measure dynamics reliably - say so rather than \
+guessing.
+
+Write EXACTLY ONE `rubric_observations` entry for EACH of these seven \
+criteria - seven entries total, never more, never fewer, and never more than \
 one entry for the same criterion. Do this even when the data is \
 unremarkable - say so plainly rather than omitting it. Each observation \
 should be 2-4 sentences, grounded in the actual numbers (reference real time \
-ranges, BPM, drift %, or consistency scores), written for a director \
-audience. Every entry must contain your real, final, complete observation - \
-never a placeholder, draft, or filler string standing in for one.
+ranges, BPM, drift %, dB values, or consistency scores), written for a \
+director audience. Every entry must contain your real, final, complete \
+observation - never a placeholder, draft, or filler string standing in for \
+one.
 
 Do NOT write about, imply, or score any other rubric criterion (tone, \
 intonation, balance, blend, sonority, articulation, note accuracy, \
-entrances, releases, technique, dynamics, expression, phrasing, style, or \
+entrances, releases, technique, expression, phrasing, style, or \
 interpretation) - you have no data on any of these. The app will separately \
 and clearly label those as not assessed; do not blur that line by hedging \
 comments about them yourself.
@@ -152,7 +176,15 @@ class DrillItemOut(BaseModel):
 
 
 class RubricObservationOut(BaseModel):
-    criterion: Literal["Stability of Pulse", "Precision", "Rhythmic Accuracy", "Transitions", "Tempo"]
+    criterion: Literal[
+        "Stability of Pulse",
+        "Precision",
+        "Rhythmic Accuracy",
+        "Transitions",
+        "Dynamics Observed",
+        "Tempo",
+        "Dynamic Expression",
+    ]
     observation: str
 
 

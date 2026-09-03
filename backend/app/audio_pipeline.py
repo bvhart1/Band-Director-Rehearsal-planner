@@ -26,6 +26,11 @@ MIN_BEATS_FOR_ANALYSIS = 6  # below this, tempo/consistency numbers are unreliab
 # variation scores 100; one with ~50% variation (very ragged) scores 0.
 CONSISTENCY_SCALE = 200.0
 
+DYNAMICS_FRAME_LENGTH = 2048
+DYNAMICS_HOP_LENGTH = 512
+DYNAMICS_FLOOR_DB = -60.0  # clip near-silence so it doesn't skew the range
+MIN_DURATION_FOR_DYNAMICS_S = 3.0
+
 
 CONVERT_TIMEOUT_S = 300
 
@@ -70,6 +75,8 @@ class Segment:
     rhythm_consistency_score: int | None = None
     beat_count: int = 0
     measure_range: str | None = None
+    dynamic_range_db: float | None = None
+    dynamic_trend_db: float | None = None
 
     @property
     def duration(self) -> float:
@@ -95,6 +102,8 @@ class Segment:
             "tempo_drift_percent": self.tempo_drift_percent,
             "rhythm_consistency_score": self.rhythm_consistency_score,
             "beat_count": self.beat_count,
+            "dynamic_range_db": self.dynamic_range_db,
+            "dynamic_trend_db": self.dynamic_trend_db,
         }
 
 
@@ -156,8 +165,39 @@ def segment_recording(y: np.ndarray, sr: int) -> list[tuple[int, int]]:
     return intervals
 
 
+def analyze_dynamics(y_seg: np.ndarray, sr: int) -> tuple[float | None, float | None]:
+    """Returns (dynamic_range_db, dynamic_trend_db) - loudness contrast within a segment.
+
+    This is a relative-loudness proxy (RMS energy, not calibrated SPL): it
+    tells you whether real dynamic contrast happened within THIS recording,
+    not the absolute volume, and not whether a specific written dynamic
+    marking was observed (no score to check against).
+    """
+    if len(y_seg) < sr * MIN_DURATION_FOR_DYNAMICS_S:
+        return None, None
+
+    rms = librosa.feature.rms(y=y_seg, frame_length=DYNAMICS_FRAME_LENGTH, hop_length=DYNAMICS_HOP_LENGTH)[0]
+    if rms.max() <= 0:
+        return None, None
+
+    rms_db = librosa.amplitude_to_db(rms, ref=np.max)
+    rms_db = np.clip(rms_db, DYNAMICS_FLOOR_DB, 0.0)
+
+    dynamic_range = float(np.percentile(rms_db, 90) - np.percentile(rms_db, 10))
+
+    midpoint = len(rms_db) // 2
+    trend = None
+    if midpoint >= 4:
+        first_half = float(np.mean(rms_db[:midpoint]))
+        second_half = float(np.mean(rms_db[midpoint:]))
+        trend = round(second_half - first_half, 1)
+
+    return round(dynamic_range, 1), trend
+
+
 def analyze_segment(y_seg: np.ndarray, sr: int, start_time: float, end_time: float) -> Segment:
     segment = Segment(start_time=start_time, end_time=end_time)
+    segment.dynamic_range_db, segment.dynamic_trend_db = analyze_dynamics(y_seg, sr)
 
     _, beat_frames = librosa.beat.beat_track(y=y_seg, sr=sr, units="frames")
     beat_times = librosa.frames_to_time(beat_frames, sr=sr)
