@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from . import supabase_client
-from .audio_pipeline import analyze_recording, convert_to_wav
+from .audio_pipeline import analyze_recording_with_timeout, convert_to_wav
 from .claude_plan import generate_plan
 from .link_fetch import LinkFetchError, fetch_audio_from_url
 
@@ -110,7 +110,7 @@ def _run_pipeline(rehearsal_id: str, user_id: str, audio_path: str, source_url: 
             convert_to_wav(input_path, wav_path)
 
             logger.info("Rehearsal %s: running tempo/rhythm analysis", rehearsal_id)
-            analysis = analyze_recording(wav_path)
+            analysis = analyze_recording_with_timeout(wav_path)
             logger.info(
                 "Rehearsal %s: analysis found %d segment(s)",
                 rehearsal_id,

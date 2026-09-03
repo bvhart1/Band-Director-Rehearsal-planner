@@ -255,3 +255,42 @@ def analyze_recording(wav_path: str) -> AnalysisResult:
     _assign_measure_ranges(segments)
 
     return AnalysisResult(duration_seconds=duration, segments=segments)
+
+
+ANALYSIS_TIMEOUT_S = 300
+
+
+def analyze_recording_with_timeout(wav_path: str, timeout_s: int = ANALYSIS_TIMEOUT_S) -> AnalysisResult:
+    """Runs analyze_recording in a subprocess so a hang can actually be killed.
+
+    A thread can't be force-stopped in Python, so a hung librosa/numba call
+    would otherwise wedge the background task forever with no way out.
+    """
+    import multiprocessing
+
+    queue: multiprocessing.Queue = multiprocessing.Queue()
+
+    def _worker() -> None:
+        try:
+            queue.put(("ok", analyze_recording(wav_path)))
+        except Exception as exc:  # noqa: BLE001 - forward any failure to the parent
+            queue.put(("error", str(exc)))
+
+    process = multiprocessing.Process(target=_worker, daemon=True)
+    process.start()
+    process.join(timeout_s)
+
+    if process.is_alive():
+        process.terminate()
+        process.join(5)
+        if process.is_alive():
+            process.kill()
+        raise RuntimeError(f"Tempo/rhythm analysis timed out after {timeout_s}s")
+
+    if queue.empty():
+        raise RuntimeError(f"Analysis process exited unexpectedly (exit code {process.exitcode})")
+
+    status, payload = queue.get()
+    if status == "error":
+        raise RuntimeError(f"Analysis failed: {payload}")
+    return payload
