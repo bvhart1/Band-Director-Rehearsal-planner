@@ -47,6 +47,13 @@ committed. `SUPABASE_SERVICE_ROLE_KEY` is the **service role** key (Project
 Settings → API in Supabase) — it bypasses row-level security, so treat it
 like a root credential and never expose it to the frontend.
 
+`render.yaml` requests Render's `free` plan. Double-check what that tier
+currently includes when you sign up (Render's offering changes over time) —
+historically it spins the service down after a period of inactivity, adding
+a ~30-60s cold start to the next request, which is a fine tradeoff for an
+app used sporadically after rehearsals. Bump `plan` to a paid tier in
+`render.yaml` if you want it always warm.
+
 Once deployed, set `VITE_BACKEND_URL` (in the frontend's GitHub Actions
 secrets, see `app/README.md`) to this service's URL, and add that same URL
 to `ALLOWED_ORIGINS` if it differs from the defaults in `render.yaml`.
